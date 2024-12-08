@@ -4,3 +4,14 @@ finetuned_atco.pth
 Recording.wav
 lora_model/adapter_config.json
 lora_model/adapter_model.safetensors
+finetuned_on_odia_steps_100.pth
+finetuned_on_odia_steps_200.pth
+finetuned_on_odia_steps_246.pth
+finetuned_on_odia_steps_300.pth
+finetuned_on_odia_steps_400.pth
+finetuned_on_odia_steps_500.pth
+finetuned_on_odia_steps_600.pth
+finetuned_on_odia_steps_700.pth
+finetuned_on_odia_steps_800.pth
+finetuned_on_odia_steps_900.pth
+finetuned_on_odia_steps_1000.pth
