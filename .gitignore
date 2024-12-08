@@ -1,3 +1,6 @@
 train-00000-of-00005-c6681348ac8543dc.parquet
 validation-00000-of-00002-7a5ea3756991bf72.parquet
 finetuned_atco.pth
+Recording.wav
+lora_model/adapter_config.json
+lora_model/adapter_model.safetensors
