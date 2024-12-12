@@ -50,6 +50,8 @@ The code for this repository is written in Python and uses the following librari
 * PyAudio
 * Numpy
 * Matplotlib
+* evaluate
+* jiwar
 
 ## Installation
 
