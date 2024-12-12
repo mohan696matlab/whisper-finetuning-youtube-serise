@@ -1,92 +1,83 @@
+# Whisper Model Fine-Tuning and Text-to-Speech Generation
 
-# Whisper Model Tutorials: From Dataset Preparation to Fine-Tuning (A Youtube serise)
+## Overview
 
-Welcome to the **Whisper Model Tutorials** repository! This series takes you through a step-by-step journey of working with OpenAI’s Whisper model, starting from dataset preparation, evaluating, and fine-tuning it effectively. Each tutorial is designed to guide you with detailed explanations and practical implementations.
+This repository contains a video series on fine-tuning the OpenAI Whisper model for text-to-speech tasks. The series covers the basics of the Whisper model, how to fine-tune it for a custom dataset, and how to use it to generate audio from text.
 
----
+- [Fine tuning  Whisper with Pytorch (Simplest way)  || PART-3](https://youtu.be/vMGSExIql8w)
+- [Word Error Rate || Evaluation of Whisper  || PART-2](https://youtu.be/NOEJo3miOec)
+- [Master Fine-Tuning OpenAI Whisper with PyTorch for Custom ASR Tasks || PART-1](https://youtu.be/iGEJkvu0Qrg)
 
-## 🚀 What You'll Learn
-1. **Understanding the Whisper model:**
-   - Dataset selectionfor Whisper-based ASR tasks.
-   - Using the Hugging Face `transformers` library for tokenization.
-   - Extracting and analyzing audio features like log-mel spectrograms.
+## Table of Contents
 
-2. **Evaluating Model Performance:**
-   - Generating predictions using the Whisper model.
-   - Calculating loss and performance metrics like WER (Word Error Rate).
+* [Introduction](#introduction)
+* [Fine-Tuning the Whisper Model](#fine-tuning-the-whisper-model)
+* [Text-to-Speech Generation](#text-to-speech-generation)
+* [Code](#code)
+* [Installation](#installation)
+* [Usage](#usage)
 
-3. **Fine-Tuning Whisper for Custom Use-Cases:**
-   - Preparing datasets for fine-tuning, including generating input features and target labels.
-   - Training the Whisper model on domain-specific data.
+## Introduction
 
-4. **LoRA finetuning of Whisper Model on low resource language (ODIA - a regional Indian language):**
+The Whisper model is a text-to-speech model that can generate audio from text. This repository provides a comprehensive introduction to the Whisper model and how to use it for text-to-speech tasks.
 
+## Fine-Tuning the Whisper Model
 
+This section covers the process of fine-tuning the Whisper model on a custom dataset. We will demonstrate how to extract audio features from the dataset, convert them into input features for the Whisper model, and fine-tune the model using the Adam optimizer.
 
----
+### Step-by-Step Guide
 
-## 📂 Repository Structure
+1. **Extract Audio Features**: Extract audio features from the dataset using a library such as Librosa or PyAudio.
+2. **Convert to Input Features**: Convert the extracted audio features into input features for the Whisper model.
+3. **Fine-Tune the Model**: Fine-tune the Whisper model using the Adam optimizer and a learning rate of 1e-5 for 5 epochs.
 
-```plaintext
-.
-├── notebooks/
-│   ├── 01_data_preparation.ipynb       # Preparing and loading ASR datasets
-│   ├── 02_feature_extraction.ipynb     # Extracting log-mel spectrogram features
-│   ├── 03_tokenization.ipynb           # Tokenizing text for Whisper
-│   ├── 04_training_and_fine_tuning.ipynb # Fine-tuning the Whisper model
-│   ├── 05_evaluation_and_loss.ipynb    # Evaluating the model and calculating loss
-│   ├── 06_deployment.ipynb             # Deploying and testing the Whisper model
+## Text-to-Speech Generation
+
+This section covers the process of using the fine-tuned Whisper model to generate audio from text.
+
+### Step-by-Step Guide
+
+1. **Load the Fine-Tuned Model**: Load the fine-tuned Whisper model using the TorchSA library.
+2. **Prepare the Input Text**: Prepare the input text for the Whisper model.
+3. **Generate Audio**: Use the Whisper model to generate audio from the input text.
+
+## Code
+
+The code for this repository is written in Python and uses the following libraries:
+
+* PyTorch
+* Transformers
+* Scipy
+* PyAudio
+* Numpy
+* Matplotlib
+
+## Installation
+
+To install the required libraries, run the following command:
+
+```bash
+git clone https://github.com/mohan696matlab/whisper-finetuning-youtube-serise.git
 ```
 
+## Usage
+
+To use the Whisper model for text-to-speech tasks, follow these steps:
+
+1. **Load the Fine-Tuned Model**: Load the fine-tuned Whisper model using the TorchSA library.
+2. **Prepare the Input Text**: Prepare the input text for the Whisper model.
+3. **Generate Audio**: Use the Whisper model to generate audio from the input text.
 
 
-## 🛠️ Setup Instructions
-1. Clone the Repository
-```
-git clone https://github.com/your-username/whisper-tutorials.git
-cd whisper-tutorials
-```
+## Evaluation
 
-2. Install Dependencies
-Ensure you have Python 3.10+ installed. Then run:
+To evaluate the performance of the Whisper model, we can use the Word Error Rate (WER) metric. The WER measures the substitution, insertion, deletion, and total number of words in the reference and predicted transcripts.
 
-```
-pip install -r requirements.txt
-```
+### Step-by-Step Guide
 
-3. Download the Dataset
-Download the Hugging Face ASR dataset used in the tutorials:
+1. **Compute the WER**: Compute the WER using the Evaluate library.
+2. **Evaluate the Model**: Evaluate the performance of the Whisper model using the WER metric.
 
-Move the .parquet files to the data/datasets/ directory.
-Ensure the dataset is accessible in the notebooks.
+## Conclusion
 
-4. Run the Jupyter Notebooks
-Start Jupyter Notebook and navigate to the working directory:
-
-## 📚 Key Topics Covered in the Codebase
-1. Data Preparation
-- Loading and processing .parquet files using Hugging Face’s datasets library.
-- Handling audio data: resampling, normalizing, and converting to NumPy arrays.
-
-2. Feature Extraction
-- Extracting log-mel spectrograms using Whisper’s FeatureExtractor.
-- Visualizing audio waveforms and spectrograms.
-
-3. Tokenization
-- Tokenizing and encoding ASR targets with WhisperTokenizer.
-- Handling padding and creating attention masks.
-
-4. Fine-Tuning
-- Initializing the WhisperForConditionalGeneration model.
-- Training the model on GPU with PyTorch and Hugging Face.
-
-5. Evaluation
-- Generating predictions using model.generate().
-- Comparing predicted outputs with target labels.
-- Calculating loss and performance metrics.
-
-
-## 🔗 Resources
-- Whisper Model Documentation
-- Hugging Face Datasets
-- Hugging Face Transformers Library
+This repository provides a comprehensive introduction to the Whisper model and how to use it for text-to-speech tasks. We hope that this repository will be helpful for researchers and developers who want to fine-tune the Whisper model for their specific use cases.
