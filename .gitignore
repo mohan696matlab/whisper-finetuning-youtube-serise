@@ -15,3 +15,6 @@ finetuned_on_odia_steps_700.pth
 finetuned_on_odia_steps_800.pth
 finetuned_on_odia_steps_900.pth
 finetuned_on_odia_steps_1000.pth
+odia_audio_youtube.mp3
+odia_audio.wav
+transcriptions.txt
