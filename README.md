@@ -4,9 +4,11 @@
 
 This repository contains a video series on fine-tuning the OpenAI Whisper model for speech-to-text tasks. The series covers the basics of the Whisper model, how to fine-tune it for a custom dataset, and how to use it to generate text from audio (multilingual).
 
+- [Fine-tuning Whisper to learn my mother tongue ODIA || PART-4](https://youtu.be/lNj7RkOms2U)
 - [Fine tuning  Whisper with Pytorch (Simplest way)  || PART-3](https://youtu.be/vMGSExIql8w)
 - [Word Error Rate || Evaluation of Whisper  || PART-2](https://youtu.be/NOEJo3miOec)
 - [Master Fine-Tuning OpenAI Whisper with PyTorch for Custom ASR Tasks || PART-1](https://youtu.be/iGEJkvu0Qrg)
+
 
 ## Table of Contents
 
