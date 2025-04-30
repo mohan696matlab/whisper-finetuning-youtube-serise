@@ -184,6 +184,7 @@ optimizer=torch.optim.AdamW(requires_grad_params, lr=5e-4) # Only for LoRA Train
 gradient_accumulation_steps = 4
 eval_steps=2
 max_epochs=10
+global_step=0
 
 
 running_wer=[]
@@ -204,24 +205,21 @@ for epoch in range(max_epochs):
 
         # Forward pass
         outputs = model(input_features, labels=labels)  # Assuming your model takes these inputs
-        running_loss_buffer.append(outputs.loss.item())
+        loss = outputs.loss
+        running_loss_buffer.append(loss.item())
         loss = loss / gradient_accumulation_steps  # Scale the loss
         loss.backward()
-        accumulated_loss += loss.item()
-
+  
         if (step + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
             global_step += 1
         
-
-    
-
         if global_step % eval_steps ==0:  # Print loss every 50 batches
             model.eval()
             val_loss = 0.0
             with torch.no_grad():
-                for val_batch in test_dataloader:
+                for val_batch in tqdm(test_dataloader,total=len(test_dataloader), leave=False):
                     val_input, val_labels = val_batch["input_features"].to(device), val_batch["labels"].to(device)
                     val_outputs = model(val_input, labels=val_labels)
                     val_loss += val_outputs.loss.item()
