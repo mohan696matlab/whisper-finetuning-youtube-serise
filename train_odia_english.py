@@ -8,7 +8,7 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 
 import os
-from transformers import WhisperTokenizer
+from transformers import WhisperTokenizer, get_scheduler
 from transformers import WhisperFeatureExtractor
 from transformers import WhisperForConditionalGeneration
 
@@ -177,13 +177,22 @@ model.train()
 
 device='cuda'
 
+MAX_STEPS=1000
+
 # Filter parameters with requires_grad=True
 requires_grad_params = filter(lambda x: x[1].requires_grad, model.parameters())
 optimizer=torch.optim.AdamW(requires_grad_params, lr=5e-4) # Only for LoRA Training
 
+lr_scheduler = get_scheduler(
+    name="linear",
+    optimizer=optimizer,
+    num_warmup_steps=50,
+    num_training_steps=MAX_STEPS,
+)
+
 gradient_accumulation_steps = 4
-eval_steps=2
-max_epochs=10
+eval_steps=5
+
 global_step=0
 
 
@@ -194,7 +203,7 @@ train_losses=[]
 
 
 
-for epoch in range(max_epochs):
+while global_step< MAX_STEPS:
 
     for step, batch in enumerate(tqdm(train_dataloader, total=len(train_dataloader), leave=False)):
         global_step += 1
@@ -212,6 +221,7 @@ for epoch in range(max_epochs):
   
         if (step + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
+            lr_scheduler.step()
             optimizer.zero_grad()
             global_step += 1
         
@@ -234,6 +244,8 @@ for epoch in range(max_epochs):
             plt.ylabel('loss')
             plt.savefig('runs/loss.png')
             plt.close()
+            
+            print_predictions(global_step)
 
             model.save_pretrained('runs/lora_adapter')
 
