@@ -8,7 +8,7 @@ from datetime import datetime
 from scipy.signal import resample
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
-
+os.makedirs('a')
 
 # Initialize PyAudio
 p = pyaudio.PyAudio()

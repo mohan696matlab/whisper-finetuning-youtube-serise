@@ -18,3 +18,4 @@ finetuned_on_odia_steps_1000.pth
 odia_audio_youtube.mp3
 odia_audio.wav
 transcriptions.txt
+runs
