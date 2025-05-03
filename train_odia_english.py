@@ -70,9 +70,9 @@ from datasets import load_dataset,concatenate_datasets
 
 asr_dataset = load_dataset("Mohan-diffuser/odia-english-ASR")
 
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-small",language='bengali',task='translate')
-feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-small",language='bengali',task='translate')
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-small").to('cuda')
+tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-medium",language='bengali',task='translate')
+feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-medium",language='bengali',task='translate')
+model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-medium").to('cuda')
 
 class whisper_training_dataset(torch.utils.data.Dataset):
     def __init__(self, dataset, max_len):#daatset is huggingface dataset object
@@ -194,12 +194,12 @@ def evaluation(model):
 
     return WER
 
-# from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
+from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
 
-# config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
+config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
 
-# model = get_peft_model(model, config)
-# model.print_trainable_parameters()
+model = get_peft_model(model, config)
+model.print_trainable_parameters()
 
 torch.cuda.empty_cache()
 
@@ -237,7 +237,8 @@ while global_step < MAX_STEPS:
         if global_step >= MAX_STEPS:
             break  # Exit the loop early if max steps reached
 
-        model.train()  # Set model to training mode
+        model.config.use_cache = False
+        model.train()
 
         input_features, labels = batch["input_features"].to(device), batch["labels"].to(device)
 
