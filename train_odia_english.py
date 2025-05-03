@@ -7,19 +7,45 @@ import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
-import os
+import os,json
 from transformers import WhisperTokenizer, get_scheduler
 from transformers import WhisperFeatureExtractor
 from transformers import WhisperForConditionalGeneration
-
+import wandb
 import evaluate
 import re
+import time
+
+device='cuda'
+
+MAX_STEPS=5000
+BATCH_SIZE=8
+eval_steps=100
+gradient_accumulation_steps = 4
+LR=1e-5
+warmup_steps=200
+
+
+
+wandb.init(
+    project="your_project_name",  # e.g., "whisper-odia-asr"
+    name=f"run-{time.strftime('%Y%m%d-%H%M%S')}",  # or a custom run name
+    config={
+        "max_steps": MAX_STEPS,
+        "eval_steps": eval_steps,
+        "lr": LR,
+        "batch_size": BATCH_SIZE,
+        "gradient_accumulation_steps": gradient_accumulation_steps,
+        "warmup_steps": warmup_steps,
+    }
+)
+
 
 def normalize_text(text):
     # Convert to lowercase
     text = text.lower()
     # Remove only ", ', and ,
-    text = re.sub(r'[",\']', '', text)
+    text = re.sub(r'[\,\?\.\!\-\;\:\"\“\%\‘\”\�\'\»\«]', '', text)
     # Optional: remove extra spaces
     text = re.sub(r'\s+', ' ', text).strip()
     return text
@@ -64,7 +90,7 @@ class whisper_training_dataset(torch.utils.data.Dataset):
         input_features = feature_extractor(audio_data, sampling_rate=16000,return_tensors='pt').input_features[0]
 
         # Process the transcription
-        transcription = item['eng_translation']
+        transcription = normalize_text(item['eng_translation'])
 
         # Create labels
         labels = tokenizer(transcription, padding="max_length", max_length=self.max_len, truncation=True, return_tensors="pt")
@@ -109,12 +135,17 @@ def print_predictions(step):
         # Save to file
         with open(f'runs/predictions_step_{step}.txt', 'w', encoding='utf-8') as f:
             f.writelines(output_lines)
-        
-dataset = whisper_training_dataset(dataset=asr_dataset['train'], max_len=60)
+
+from datasets import concatenate_datasets
+# Combine train and test splits
+combined_dataset = concatenate_datasets([asr_dataset['train'], asr_dataset['test']])
+
+# Now use the combined dataset
+dataset = whisper_training_dataset(dataset=combined_dataset, max_len=60)
 
 train_dataloader = torch.utils.data.DataLoader(
     dataset,
-    batch_size=8,  # Adjust batch size as needed
+    batch_size=BATCH_SIZE,  # Adjust batch size as needed
     shuffle=True,  # Shuffle data during training
 )
 
@@ -122,7 +153,7 @@ test_dataset = whisper_training_dataset(dataset=asr_dataset['validation'], max_l
 
 test_dataloader = torch.utils.data.DataLoader(
     test_dataset,
-    batch_size=8,  # Adjust batch size as needed
+    batch_size=BATCH_SIZE,  # Adjust batch size as needed
     shuffle=True,  # Shuffle data during training
 )
 
@@ -134,7 +165,7 @@ def evaluation(model):
 
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
-        batch_size=8,  # Adjust batch size as needed
+        batch_size=BATCH_SIZE,  # Adjust batch size as needed
         shuffle=True,  # Shuffle data during training
     )
 
@@ -163,35 +194,31 @@ def evaluation(model):
 
     return WER
 
-from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
+# from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
 
-config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
+# config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
 
-model = get_peft_model(model, config)
-model.print_trainable_parameters()
+# model = get_peft_model(model, config)
+# model.print_trainable_parameters()
 
 torch.cuda.empty_cache()
 
 model.config.use_cache = False
 model.train()
 
-device='cuda'
 
-MAX_STEPS=1000
 
 # Filter parameters with requires_grad=True
 requires_grad_params = filter(lambda x: x[1].requires_grad, model.parameters())
-optimizer=torch.optim.AdamW(requires_grad_params, lr=5e-4) # Only for LoRA Training
+optimizer=torch.optim.AdamW(requires_grad_params, lr=LR) # Only for LoRA Training
 
 lr_scheduler = get_scheduler(
     name="linear",
     optimizer=optimizer,
-    num_warmup_steps=50,
+    num_warmup_steps=warmup_steps,
     num_training_steps=MAX_STEPS,
 )
 
-gradient_accumulation_steps = 4
-eval_steps=5
 
 global_step=0
 
@@ -202,52 +229,79 @@ val_losses=[]
 train_losses=[]
 
 
+pbar = tqdm(np.arange(MAX_STEPS), total=MAX_STEPS, leave=False)
 
-while global_step< MAX_STEPS:
+while global_step < MAX_STEPS:
 
-    for step, batch in enumerate(tqdm(train_dataloader, total=len(train_dataloader), leave=False)):
-        global_step += 1
+    for step, batch in enumerate(train_dataloader):
+        if global_step >= MAX_STEPS:
+            break  # Exit the loop early if max steps reached
 
         model.train()  # Set model to training mode
 
         input_features, labels = batch["input_features"].to(device), batch["labels"].to(device)
 
         # Forward pass
-        outputs = model(input_features, labels=labels)  # Assuming your model takes these inputs
+        outputs = model(input_features, labels=labels)
         loss = outputs.loss
         running_loss_buffer.append(loss.item())
+
+        # Show current loss in progress bar
+        global_step += 1
+        pbar.update(1)
+        pbar.set_postfix(loss=f"{loss.item():.4f}")
+        wandb.log({"train/loss": loss.item(), "step": global_step})
+
+
         loss = loss / gradient_accumulation_steps  # Scale the loss
         loss.backward()
-  
+
         if (step + 1) % gradient_accumulation_steps == 0:
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
-            global_step += 1
-        
-        if global_step % eval_steps ==0:  # Print loss every 50 batches
+            
+
+        if global_step % eval_steps == 0:
             model.eval()
             val_loss = 0.0
             with torch.no_grad():
-                for val_batch in tqdm(test_dataloader,total=len(test_dataloader), leave=False):
-                    val_input, val_labels = val_batch["input_features"].to(device), val_batch["labels"].to(device)
+                for val_batch in tqdm(test_dataloader, total=len(test_dataloader), leave=False):
+                    val_input = val_batch["input_features"].to(device)
+                    val_labels = val_batch["labels"].to(device)
                     val_outputs = model(val_input, labels=val_labels)
                     val_loss += val_outputs.loss.item()
             val_loss /= len(test_dataloader)
             val_losses.append(val_loss)
-            train_losses.append(np.mean(running_loss_buffer[-int(eval_steps*gradient_accumulation_steps):]))
-            
-            
+            train_losses.append(np.mean(running_loss_buffer[-int(eval_steps * gradient_accumulation_steps):]))
+
+            wandb.log({
+                        "eval/loss": val_loss,
+                        "train/loss_avg": train_losses[-1],
+                        "step": global_step
+                    })
+
             plt.plot(train_losses, label='train loss', color='blue')
             plt.plot(val_losses, label='test loss', color='red')
             plt.xlabel('steps')
             plt.ylabel('loss')
+            plt.legend()
+            plt.tight_layout()
             plt.savefig('runs/loss.png')
             plt.close()
-            
+
             print_predictions(global_step)
 
             model.save_pretrained('runs/lora_adapter')
 
+            current_wer = evaluation(model)
+            wandb.log({"eval/wer": current_wer, "step": global_step})
+            running_wer.append({"step": global_step, "wer": current_wer})
+
+            # Later save:
+            with open('runs/running_wer.json', 'w') as f:
+                json.dump(running_wer, f, indent=2)
+
+
+
     torch.cuda.empty_cache()
-    print(evaluation(model))
