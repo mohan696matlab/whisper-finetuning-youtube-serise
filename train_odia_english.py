@@ -15,6 +15,7 @@ import wandb
 import evaluate
 import re
 import time
+from jiwer import cer
 
 device='cuda'
 
@@ -22,8 +23,8 @@ MAX_STEPS=5000
 BATCH_SIZE=8
 eval_steps=100
 gradient_accumulation_steps = 4
-LR=1e-5
-warmup_steps=200
+LR=5e-4
+warmup_steps=20
 
 
 
@@ -50,8 +51,8 @@ def normalize_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-os.makedirs(name='runs/lora_adapter',exist_ok=True)
-wer  = evaluate.load('wer')
+os.makedirs(name='runs',exist_ok=True)
+
 
 
 
@@ -70,9 +71,9 @@ from datasets import load_dataset,concatenate_datasets
 
 asr_dataset = load_dataset("Mohan-diffuser/odia-english-ASR")
 
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-medium",language='bengali',task='translate')
-feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-medium",language='bengali',task='translate')
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-medium").to('cuda')
+tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-small",language='bengali',task='transcribe')
+feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-small",language='bengali',task='transcribe')
+model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-small").to('cuda')
 
 class whisper_training_dataset(torch.utils.data.Dataset):
     def __init__(self, dataset, max_len):#daatset is huggingface dataset object
@@ -90,7 +91,7 @@ class whisper_training_dataset(torch.utils.data.Dataset):
         input_features = feature_extractor(audio_data, sampling_rate=16000,return_tensors='pt').input_features[0]
 
         # Process the transcription
-        transcription = normalize_text(item['eng_translation'])
+        transcription = item['transcription']
 
         # Create labels
         labels = tokenizer(transcription, padding="max_length", max_length=self.max_len, truncation=True, return_tensors="pt")
@@ -110,7 +111,7 @@ def print_predictions(step):
 
     for idx in range(5):
 
-        target = normalize_text(asr_dataset['validation'][idx]['eng_translation'])
+        target = normalize_text(asr_dataset['validation'][idx]['transcription'])
         audio_original = asr_dataset['validation'][idx]['audio']['array']
         original_sample_rate = asr_dataset['validation'][idx]['audio']['sampling_rate']
 
@@ -121,7 +122,7 @@ def print_predictions(step):
                                         return_tensors='pt').input_features
 
         with torch.no_grad():
-            op = model.generate(input_feature.to('cuda'), language='bengali', task='translate')
+            op = model.generate(input_feature.to('cuda'), language='bengali', task='transcribe')
             
         text_pred = tokenizer.batch_decode(op, skip_special_tokens=True)[0]
         
@@ -141,7 +142,7 @@ from datasets import concatenate_datasets
 combined_dataset = concatenate_datasets([asr_dataset['train'], asr_dataset['test']])
 
 # Now use the combined dataset
-dataset = whisper_training_dataset(dataset=combined_dataset, max_len=60)
+dataset = whisper_training_dataset(dataset=combined_dataset, max_len=400)
 
 train_dataloader = torch.utils.data.DataLoader(
     dataset,
@@ -149,7 +150,7 @@ train_dataloader = torch.utils.data.DataLoader(
     shuffle=True,  # Shuffle data during training
 )
 
-test_dataset = whisper_training_dataset(dataset=asr_dataset['validation'], max_len=60)
+test_dataset = whisper_training_dataset(dataset=asr_dataset['validation'], max_len=400)
 
 test_dataloader = torch.utils.data.DataLoader(
     test_dataset,
@@ -161,7 +162,7 @@ def evaluation(model):
 
     device='cuda'
 
-    test_dataset = whisper_training_dataset(dataset=asr_dataset['validation'], max_len=60)
+    test_dataset = whisper_training_dataset(dataset=asr_dataset['validation'], max_len=400)
 
     test_dataloader = torch.utils.data.DataLoader(
         test_dataset,
@@ -174,8 +175,14 @@ def evaluation(model):
     predictions=[]
     references=[]
 
+    batch_counter=0
+
     for batch in tqdm(test_dataloader,total=len(test_dataloader)):
         
+        if batch_counter >= 5:
+            break
+        
+        batch_counter+=1
 
         model.eval()  # Set model to training mode
         model.config.use_cache = True
@@ -183,22 +190,22 @@ def evaluation(model):
         input_features, labels = batch["input_features"].to(device), batch["labels"].to(device)
 
         with torch.no_grad():
-            generated_tokens = model.generate(input_features=input_features,language='bengali', task='translate')
+            generated_tokens = model.generate(input_features=input_features,language='bengali', task='transcribe')
                         
         decoded_preds = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
         predictions.extend(decoded_preds)
         references.extend(decoded_labels)
 
-    WER = wer.compute(predictions=predictions, references=references) * 100
+    CER = cer(references, predictions) * 100
 
-    return WER
+    return CER
 
 from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
 
 config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
-
 model = get_peft_model(model, config)
+# model = PeftModel.from_pretrained(model, "runs/lora_adapter", is_trainable=True, device_map={"": 0})
 model.print_trainable_parameters()
 
 torch.cuda.empty_cache()
@@ -223,7 +230,7 @@ lr_scheduler = get_scheduler(
 global_step=0
 
 
-running_wer=[]
+running_cer=[]
 running_loss_buffer=[]
 val_losses=[]
 train_losses=[]
@@ -293,15 +300,16 @@ while global_step < MAX_STEPS:
 
             print_predictions(global_step)
 
-            model.save_pretrained('runs/lora_adapter')
+            os.makedirs(name=f'runs/lora_adapter_{global_step}_steps',exist_ok=True)
+            model.save_pretrained(f'runs/lora_adapter_{global_step}_steps')
 
-            current_wer = evaluation(model)
-            wandb.log({"eval/wer": current_wer, "step": global_step})
-            running_wer.append({"step": global_step, "wer": current_wer})
+            current_cer = evaluation(model)
+            wandb.log({"eval/cer": current_cer, "step": global_step})
+            running_cer.append({"step": global_step, "cer": current_cer})
 
             # Later save:
-            with open('runs/running_wer.json', 'w') as f:
-                json.dump(running_wer, f, indent=2)
+            with open('runs/running_cer.json', 'w') as f:
+                json.dump(running_cer, f, indent=2)
 
 
 
