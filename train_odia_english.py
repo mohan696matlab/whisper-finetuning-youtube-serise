@@ -71,9 +71,10 @@ from datasets import load_dataset,concatenate_datasets
 
 asr_dataset = load_dataset("Mohan-diffuser/odia-english-ASR")
 
-tokenizer = WhisperTokenizer.from_pretrained("openai/whisper-small",language='bengali',task='transcribe')
-feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-small",language='bengali',task='transcribe')
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-small").to('cuda')
+model_id="openai/whisper-base"
+tokenizer = WhisperTokenizer.from_pretrained(model_id,language='bengali',task='transcribe')
+feature_extractor = WhisperFeatureExtractor.from_pretrained(model_id,language='bengali',task='transcribe')
+model = WhisperForConditionalGeneration.from_pretrained(model_id).to('cuda')
 
 class whisper_training_dataset(torch.utils.data.Dataset):
     def __init__(self, dataset, max_len):#daatset is huggingface dataset object
@@ -203,7 +204,7 @@ def evaluation(model):
 
 from peft import LoraConfig, PeftModel, LoraModel, LoraConfig, get_peft_model
 
-config = LoraConfig(r=64, lora_alpha=64, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
+config = LoraConfig(r=256, lora_alpha=256, target_modules=["q_proj", "v_proj", "q_proj", "out_proj"], lora_dropout=0.05, bias="none")
 model = get_peft_model(model, config)
 # model = PeftModel.from_pretrained(model, "runs/lora_adapter", is_trainable=True, device_map={"": 0})
 model.print_trainable_parameters()
